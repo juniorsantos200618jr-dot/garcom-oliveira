@@ -185,10 +185,58 @@ class _OrderScreenState extends State<OrderScreen> {
                   ),
                 );
                 if (confirm != true) return;
+
+                final closingOrders = AppStore.instance.openOrdersForTable(widget.tableNumber);
+                final closingWaiter =
+                    AppStore.instance.openTableWaiter(widget.tableNumber) ?? widget.waiterName;
+                final printResult = await PrinterService.instance.printClosedAccount(
+                  tableNumber: widget.tableNumber,
+                  waiter: closingWaiter,
+                  orders: closingOrders,
+                  closedAt: DateTime.now(),
+                );
+
+                final printMessage = printResult.values.join('\n');
+                final printFailed = printMessage.startsWith('Falha:');
+                if (printFailed) {
+                  if (!mounted) return;
+                  await showDialog<void>(
+                    context: context,
+                    builder: (errorContext) => AlertDialog(
+                      title: const Text('Nao foi possivel fechar'),
+                      content: Text(
+                        'A impressao do fechamento falhou. A mesa continua aberta para evitar fechar sem o comprovante.\n\n$printMessage',
+                      ),
+                      actions: [
+                        FilledButton(
+                          onPressed: () => Navigator.pop(errorContext),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                  return;
+                }
+
                 await AppStore.instance.closeTable(widget.tableNumber);
                 if (!mounted) return;
                 Navigator.pop(dialogContext);
-                Navigator.pop(context);
+                await showDialog<void>(
+                  context: context,
+                  builder: (successContext) => AlertDialog(
+                    title: const Text('Conta fechada'),
+                    content: Text(
+                      'Mesa ${widget.tableNumber} liberada.\n\n$printMessage',
+                    ),
+                    actions: [
+                      FilledButton(
+                        onPressed: () => Navigator.pop(successContext),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+                if (mounted) Navigator.pop(context);
               },
             ),
         ],
