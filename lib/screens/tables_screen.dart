@@ -17,16 +17,9 @@ class TablesScreen extends StatefulWidget {
 class _TablesScreenState extends State<TablesScreen> {
   bool get isAdmin => widget.account.role == UserRole.admin;
 
-  bool _tableOpen(int table) => AppStore.instance.orders.any(
-        (o) => o.tableNumber == table && o.status != null,
-      );
+  bool _tableOpen(int table) => AppStore.instance.openOrdersForTable(table).isNotEmpty;
 
-  String? _waiterForTable(int table) {
-    for (final order in AppStore.instance.orders) {
-      if (order.tableNumber == table && order.status != null) return order.waiter;
-    }
-    return null;
-  }
+  String? _waiterForTable(int table) => AppStore.instance.openTableWaiter(table);
 
   void _logout() {
     Navigator.of(context).pushAndRemoveUntil(
@@ -74,7 +67,7 @@ class _TablesScreenState extends State<TablesScreen> {
         padding: const EdgeInsets.all(16),
         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
           maxCrossAxisExtent: 190,
-          mainAxisExtent: 132,
+          mainAxisExtent: 150,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
         ),
@@ -83,6 +76,7 @@ class _TablesScreenState extends State<TablesScreen> {
           final table = index + 1;
           final open = _tableOpen(table);
           final waiter = _waiterForTable(table);
+          final total = AppStore.instance.openTableTotal(table);
           return Card(
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
@@ -91,7 +85,8 @@ class _TablesScreenState extends State<TablesScreen> {
                   MaterialPageRoute(
                     builder: (_) => OrderScreen(
                       tableNumber: table,
-                      waiterName: widget.account.name,
+                      waiterName: open && waiter != null ? waiter : widget.account.name,
+                      isAdmin: isAdmin,
                     ),
                   ),
                 );
@@ -120,6 +115,9 @@ class _TablesScreenState extends State<TablesScreen> {
                         if (open && waiter != null) ...[
                           const SizedBox(height: 4),
                           Text('Garcom: $waiter', maxLines: 1, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 2),
+                          Text('Pre-conta: R\$ ${total.toStringAsFixed(2)}',
+                              style: const TextStyle(fontWeight: FontWeight.w600)),
                         ],
                       ],
                     ),

@@ -7,10 +7,13 @@ import '../services/printer_service.dart';
 class OrderScreen extends StatefulWidget {
   final int tableNumber;
   final String waiterName;
+  final bool isAdmin;
+
   const OrderScreen({
     super.key,
     required this.tableNumber,
     required this.waiterName,
+    required this.isAdmin,
   });
 
   @override
@@ -81,20 +84,22 @@ class _OrderScreenState extends State<OrderScreen> {
       tableNumber: widget.tableNumber,
       waiter: widget.waiterName,
       createdAt: DateTime.now(),
-      items: cart.map((i) => OrderItem(
-        product: i.product,
-        quantity: i.quantity,
-        note: i.note,
-      )).toList(),
+      items: cart
+          .map((i) => OrderItem(
+                product: i.product,
+                quantity: i.quantity,
+                note: i.note,
+              ))
+          .toList(),
     );
 
     await AppStore.instance.addOrder(order);
     final printResult = await PrinterService.instance.printOrder(order);
     if (!mounted) return;
 
-    final text = printResult.entries
-        .map((e) => '${e.key}: ${e.value}')
-        .join('\n');
+    setState(() => cart.clear());
+
+    final text = printResult.entries.map((e) => '${e.key}: ${e.value}').join('\n');
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -108,15 +113,127 @@ class _OrderScreenState extends State<OrderScreen> {
         ],
       ),
     );
-    if (mounted) Navigator.pop(context);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _showPreAccount() async {
+    final orders = AppStore.instance.openOrdersForTable(widget.tableNumber);
+    final totalBill = AppStore.instance.openTableTotal(widget.tableNumber);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Pre-conta • Mesa ${widget.tableNumber}'),
+        content: SizedBox(
+          width: 480,
+          child: orders.isEmpty
+              ? const Text('Ainda nao ha pedidos lancados nesta mesa.')
+              : SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Garcom: ${AppStore.instance.openTableWaiter(widget.tableNumber) ?? widget.waiterName}'),
+                      const SizedBox(height: 12),
+                      ...orders.expand((order) => order.items.map((item) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('${item.quantity}x ${item.product.name}'),
+                                      if (item.note.isNotEmpty)
+                                        Text('Obs: ${item.note}', style: Theme.of(context).textTheme.bodySmall),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text('R\$ ${item.total.toStringAsFixed(2)}'),
+                              ],
+                            ),
+                          ))),
+                      const Divider(height: 24),
+                      Text(
+                        'TOTAL: R\$ ${totalBill.toStringAsFixed(2)}',
+                        textAlign: TextAlign.right,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Voltar')),
+          if (widget.isAdmin && orders.isNotEmpty)
+            FilledButton.icon(
+              icon: const Icon(Icons.check_circle),
+              label: const Text('Fechar conta'),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: dialogContext,
+                  builder: (confirmContext) => AlertDialog(
+                    title: const Text('Fechar conta?'),
+                    content: Text(
+                      'Mesa ${widget.tableNumber}\nTotal: R\$ ${totalBill.toStringAsFixed(2)}\n\nAo confirmar, a mesa sera liberada.',
+                    ),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(confirmContext, false), child: const Text('Cancelar')),
+                      FilledButton(onPressed: () => Navigator.pop(confirmContext, true), child: const Text('Confirmar')),
+                    ],
+                  ),
+                );
+                if (confirm != true) return;
+                await AppStore.instance.closeTable(widget.tableNumber);
+                if (!mounted) return;
+                Navigator.pop(dialogContext);
+                Navigator.pop(context);
+              },
+            ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final preAccountTotal = AppStore.instance.openTableTotal(widget.tableNumber);
+
     return Scaffold(
-      appBar: AppBar(title: Text('Mesa ${widget.tableNumber}')),
+      appBar: AppBar(
+        title: Text('Mesa ${widget.tableNumber}'),
+        actions: [
+          IconButton(
+            tooltip: 'Pre-conta',
+            onPressed: _showPreAccount,
+            icon: const Icon(Icons.receipt),
+          ),
+        ],
+      ),
       body: Column(
         children: [
+          if (preAccountTotal > 0)
+            Material(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: InkWell(
+                onTap: _showPreAccount,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.receipt_long),
+                      const SizedBox(width: 8),
+                      const Expanded(child: Text('Ver pre-conta')),
+                      Text(
+                        'R\$ ${preAccountTotal.toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           SizedBox(
             height: 56,
             child: ListView(
@@ -130,13 +247,13 @@ class _OrderScreenState extends State<OrderScreen> {
                 ),
                 const SizedBox(width: 8),
                 ...visibleCategories.map((category) => Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(category),
-                    selected: selectedCategory == category,
-                    onSelected: (_) => setState(() => selectedCategory = category),
-                  ),
-                )),
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(category),
+                        selected: selectedCategory == category,
+                        onSelected: (_) => setState(() => selectedCategory = category),
+                      ),
+                    )),
               ],
             ),
           ),

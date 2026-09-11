@@ -32,6 +32,7 @@ class RestaurantOrder {
   final DateTime createdAt;
   final List<OrderItem> items;
   OrderStatus status;
+  bool closed;
 
   RestaurantOrder({
     required this.id,
@@ -40,6 +41,7 @@ class RestaurantOrder {
     required this.createdAt,
     required this.items,
     this.status = OrderStatus.pendente,
+    this.closed = false,
   });
 
   double get total => items.fold(0, (sum, item) => sum + item.total);

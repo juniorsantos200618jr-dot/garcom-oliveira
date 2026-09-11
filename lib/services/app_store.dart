@@ -188,6 +188,7 @@ class AppStore {
             createdAt: DateTime.parse(map['createdAt'] as String),
             items: items,
             status: OrderStatus.values[(map['status'] as int?) ?? 0],
+            closed: (map['closed'] as bool?) ?? false,
           );
         }));
     } catch (_) {
@@ -225,6 +226,7 @@ class AppStore {
       'waiter': order.waiter,
       'createdAt': order.createdAt.toIso8601String(),
       'status': order.status.index,
+      'closed': order.closed,
       'items': order.items.map((item) => {
         'productId': item.product.id,
         'productName': item.product.name,
@@ -240,6 +242,32 @@ class AppStore {
 
   Future<void> addOrder(RestaurantOrder order) async {
     orders.insert(0, order);
+    await save();
+  }
+
+
+  List<RestaurantOrder> openOrdersForTable(int tableNumber) {
+    return orders
+        .where((o) => o.tableNumber == tableNumber && !o.closed)
+        .toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
+
+  double openTableTotal(int tableNumber) {
+    return openOrdersForTable(tableNumber).fold(0.0, (sum, order) => sum + order.total);
+  }
+
+  String? openTableWaiter(int tableNumber) {
+    final list = openOrdersForTable(tableNumber);
+    return list.isEmpty ? null : list.first.waiter;
+  }
+
+  Future<void> closeTable(int tableNumber) async {
+    for (final order in orders) {
+      if (order.tableNumber == tableNumber && !order.closed) {
+        order.closed = true;
+      }
+    }
     await save();
   }
 
