@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/order.dart';
 import '../models/product.dart';
+import '../models/account.dart';
 
 class AppStore {
   static final AppStore instance = AppStore._();
@@ -9,6 +10,7 @@ class AppStore {
 
   final List<Product> products = [];
   final List<RestaurantOrder> orders = [];
+  final List<UserAccount> accounts = [];
 
   static const List<Product> _defaultProducts = [
     Product(id: 'p1', name: 'Picanha', price: 42.90, category: 'Churrascos', sector: Sector.churrasqueira),
@@ -32,7 +34,99 @@ class AppStore {
     final prefs = await SharedPreferences.getInstance();
     _loadProducts(prefs);
     _loadOrders(prefs);
+    _loadAccounts(prefs);
   }
+
+  void _loadAccounts(SharedPreferences prefs) {
+    final raw = prefs.getString('accounts_v1');
+    if (raw == null || raw.isEmpty) {
+      accounts
+        ..clear()
+        ..add(const UserAccount(
+          id: 'admin-oliveira',
+          name: 'Oliveira',
+          username: 'oliveira321',
+          password: 'espeto4321',
+          role: UserRole.admin,
+          active: true,
+        ));
+      saveAccounts();
+      return;
+    }
+    try {
+      final data = jsonDecode(raw) as List<dynamic>;
+      accounts
+        ..clear()
+        ..addAll(data.map((e) => UserAccount.fromJson(e as Map<String, dynamic>)));
+      if (!accounts.any((a) => a.role == UserRole.admin)) {
+        accounts.insert(0, const UserAccount(
+          id: 'admin-oliveira',
+          name: 'Oliveira',
+          username: 'oliveira321',
+          password: 'espeto4321',
+          role: UserRole.admin,
+          active: true,
+        ));
+        saveAccounts();
+      }
+    } catch (_) {
+      accounts
+        ..clear()
+        ..add(const UserAccount(
+          id: 'admin-oliveira',
+          name: 'Oliveira',
+          username: 'oliveira321',
+          password: 'espeto4321',
+          role: UserRole.admin,
+          active: true,
+        ));
+      saveAccounts();
+    }
+  }
+
+  UserAccount? authenticate(String username, String password) {
+    final u = username.trim().toLowerCase();
+    for (final account in accounts) {
+      if (account.active &&
+          account.username.trim().toLowerCase() == u &&
+          account.password == password) {
+        return account;
+      }
+    }
+    return null;
+  }
+
+  Future<void> saveAccounts() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('accounts_v1', jsonEncode(accounts.map((a) => a.toJson()).toList()));
+  }
+
+  Future<String?> addWaiter(UserAccount account) async {
+    if (accounts.any((a) => a.username.trim().toLowerCase() == account.username.trim().toLowerCase())) {
+      return 'Esse usuario ja existe.';
+    }
+    accounts.add(account.copyWith(role: UserRole.garcom));
+    await saveAccounts();
+    return null;
+  }
+
+  Future<String?> updateWaiter(UserAccount account) async {
+    final index = accounts.indexWhere((a) => a.id == account.id);
+    if (index < 0) return 'Usuario nao encontrado.';
+    if (accounts[index].role == UserRole.admin) return 'O administrador principal nao pode ser alterado aqui.';
+    if (accounts.any((a) => a.id != account.id && a.username.trim().toLowerCase() == account.username.trim().toLowerCase())) {
+      return 'Esse usuario ja existe.';
+    }
+    accounts[index] = account.copyWith(role: UserRole.garcom);
+    await saveAccounts();
+    return null;
+  }
+
+  Future<void> deleteWaiter(String id) async {
+    accounts.removeWhere((a) => a.id == id && a.role == UserRole.garcom);
+    await saveAccounts();
+  }
+
 
   void _loadProducts(SharedPreferences prefs) {
     final raw = prefs.getString('products_v2');

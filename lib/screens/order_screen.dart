@@ -93,7 +93,7 @@ class _OrderScreenState extends State<OrderScreen> {
     if (!mounted) return;
 
     final text = printResult.entries
-        .map((e) => '${e.key.label}: ${e.value}')
+        .map((e) => '${e.key}: ${e.value}')
         .join('\n');
     await showDialog<void>(
       context: context,

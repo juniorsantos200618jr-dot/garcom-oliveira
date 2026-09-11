@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'services/app_store.dart';
+import 'services/printer_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppStore.instance.load();
+  await PrinterService.instance.load();
   runApp(const GarcomFacilApp());
 }
 
