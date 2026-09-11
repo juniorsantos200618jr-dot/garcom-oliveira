@@ -34,11 +34,11 @@ class _TablesScreenState extends State<TablesScreen> {
             icon: const Icon(Icons.receipt_long),
           ),
           IconButton(
-            tooltip: 'Configuracoes',
+            tooltip: 'Painel administrativo',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const SettingsScreen()),
             ),
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.admin_panel_settings),
           ),
         ],
       ),

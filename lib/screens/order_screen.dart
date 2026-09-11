@@ -18,13 +18,23 @@ class OrderScreen extends StatefulWidget {
 }
 
 class _OrderScreenState extends State<OrderScreen> {
-  Sector? selectedSector;
+  String? selectedCategory;
   final List<OrderItem> cart = [];
 
   List<Product> get visibleProducts {
-    final all = AppStore.instance.products;
-    if (selectedSector == null) return all;
-    return all.where((p) => p.sector == selectedSector).toList();
+    final all = AppStore.instance.products.where((p) => p.active).toList();
+    if (selectedCategory == null) return all;
+    return all.where((p) => p.category == selectedCategory).toList();
+  }
+
+  List<String> get visibleCategories {
+    final values = AppStore.instance.products
+        .where((p) => p.active)
+        .map((p) => p.category)
+        .toSet()
+        .toList();
+    values.sort();
+    return values;
   }
 
   double get total => cart.fold(0, (sum, item) => sum + item.total);
@@ -115,40 +125,42 @@ class _OrderScreenState extends State<OrderScreen> {
               children: [
                 ChoiceChip(
                   label: const Text('Todos'),
-                  selected: selectedSector == null,
-                  onSelected: (_) => setState(() => selectedSector = null),
+                  selected: selectedCategory == null,
+                  onSelected: (_) => setState(() => selectedCategory = null),
                 ),
                 const SizedBox(width: 8),
-                ...Sector.values.map((sector) => Padding(
+                ...visibleCategories.map((category) => Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ChoiceChip(
-                    label: Text(sector.label),
-                    selected: selectedSector == sector,
-                    onSelected: (_) => setState(() => selectedSector = sector),
+                    label: Text(category),
+                    selected: selectedCategory == category,
+                    onSelected: (_) => setState(() => selectedCategory = category),
                   ),
                 )),
               ],
             ),
           ),
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(12),
-              itemCount: visibleProducts.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final product = visibleProducts[index];
-                return Card(
-                  child: ListTile(
-                    title: Text(product.name),
-                    subtitle: Text('${product.sector.label} • R\$ ${product.price.toStringAsFixed(2)}'),
-                    trailing: FilledButton(
-                      onPressed: () => _add(product),
-                      child: const Text('Adicionar'),
-                    ),
+            child: visibleProducts.isEmpty
+                ? const Center(child: Text('Nenhum produto ativo.'))
+                : ListView.separated(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: visibleProducts.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final product = visibleProducts[index];
+                      return Card(
+                        child: ListTile(
+                          title: Text(product.name),
+                          subtitle: Text('${product.category} • R\$ ${product.price.toStringAsFixed(2)}'),
+                          trailing: FilledButton(
+                            onPressed: () => _add(product),
+                            child: const Text('Adicionar'),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
           if (cart.isNotEmpty)
             SafeArea(
